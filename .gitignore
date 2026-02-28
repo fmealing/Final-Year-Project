@@ -1,0 +1,18 @@
+CLAUDE.md
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# SQLite database (test data — exclude from repo)
+fyp_mqtt_test/telemetry.db
+
+# Next.js
+glove-dashboard/.next/
+glove-dashboard/node_modules/
+glove-dashboard/.env*.local
+
+# macOS
+.DS_Store
