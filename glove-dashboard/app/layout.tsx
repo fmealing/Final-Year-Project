@@ -17,6 +17,17 @@ const mono = JetBrains_Mono({
 export const metadata: Metadata = {
   title: "FORM — Smart Glove System",
   description: "Real-time sensor dashboard for the FORM Smart Gym Glove",
+  openGraph: {
+    title: "FORM — Smart Glove System",
+    description: "Real-time sensor dashboard for the FORM Smart Gym Glove",
+    images: [{ url: "/images/vero-board.png" }],
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: "FORM — Smart Glove System",
+    description: "Real-time sensor dashboard for the FORM Smart Gym Glove",
+    images: ["/images/vero-board.png"],
+  },
 };
 
 export default function RootLayout({
@@ -26,8 +37,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${barlow.variable} ${mono.variable} antialiased`}
-        style={{ fontFamily: "var(--font-barlow), sans-serif" }}>
+      <body
+        className={`${barlow.variable} ${mono.variable} antialiased`}
+        style={{ fontFamily: "var(--font-barlow), sans-serif" }}
+      >
         {children}
       </body>
     </html>
