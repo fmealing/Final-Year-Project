@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: glove-trainer-api
+    runtime: python
+    buildCommand: pip install -r fyp_mqtt_test/requirements.txt
+    startCommand: gunicorn --chdir fyp_mqtt_test api:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: DATABASE_URL
+        sync: false

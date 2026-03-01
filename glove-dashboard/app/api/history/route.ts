@@ -1,17 +1,17 @@
 import { NextResponse } from "next/server";
+import axios from "axios";
 
-const FLASK_BASE = "http://127.0.0.1:5000";
+const FLASK_BASE = process.env.FLASK_API_URL ?? "http://127.0.0.1:5000";
 
 export async function GET() {
   try {
-    const res = await fetch(`${FLASK_BASE}/last_n?n=50`, { cache: "no-store" });
-    if (!res.ok) {
-      return NextResponse.json([], { status: res.status });
-    }
-    const data = await res.json();
+    const { data } = await axios.get<unknown[]>(`${FLASK_BASE}/last_n?n=50`);
     // Flask returns newest-first; reverse to oldest-first for charts
-    return NextResponse.json((data as unknown[]).reverse());
-  } catch {
+    return NextResponse.json(data.reverse());
+  } catch (err) {
+    if (axios.isAxiosError(err) && err.response) {
+      return NextResponse.json([], { status: err.response.status });
+    }
     return NextResponse.json([], { status: 503 });
   }
 }

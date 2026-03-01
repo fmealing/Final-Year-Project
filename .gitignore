@@ -1,4 +1,5 @@
 CLAUDE.md
+notes.md
 
 # Python
 .venv/
@@ -6,8 +7,8 @@ __pycache__/
 *.pyc
 *.pyo
 
-# SQLite database (test data — exclude from repo)
 fyp_mqtt_test/telemetry.db
+fyp_mqtt_test/.env
 
 # Next.js
 glove-dashboard/.next/
