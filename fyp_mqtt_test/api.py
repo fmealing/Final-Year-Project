@@ -41,6 +41,41 @@ def query_db(query, args=(), one=False):
         conn.close()
 
 
+@app.route("/ingest", methods=["POST"])
+def ingest():
+    body = request.get_json(silent=True)
+    log.info("POST /ingest payload=%r", body)
+    if not body:
+        log.warning("/ingest: empty or invalid JSON")
+        return jsonify({"error": "invalid JSON"}), 400
+    try:
+        flex = body.get("flex", [None, None, None, None])
+        imu  = body.get("imu", {})
+        conn = psycopg2.connect(DB_URL)
+        cur  = conn.cursor()
+        cur.execute("""
+            INSERT INTO telemetry (
+                received_utc, device_id, ts_ms,
+                flex1, flex2, flex3, flex4,
+                ax, ay, az, gx, gy, gz
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """, (
+            __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
+            body.get("device_id"),
+            body.get("ts_ms"),
+            flex[0], flex[1], flex[2], flex[3],
+            imu.get("ax"), imu.get("ay"), imu.get("az"),
+            imu.get("gx"), imu.get("gy"), imu.get("gz"),
+        ))
+        conn.commit()
+        conn.close()
+        log.info("/ingest: inserted row for device=%s", body.get("device_id"))
+        return jsonify({"status": "ok"}), 201
+    except Exception as e:
+        log.error("/ingest error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/health")
 def health():
     log.info("GET /health")
