@@ -46,6 +46,9 @@ void setup() {
     Serial.println("ERROR: MPU6050 not found!");
     while (1);
   }
+  // Explicitly set sensor ranges
+  mpu.setAccelerometerRange(MPU6050_RANGE_2_G);   // ±2g  → 19.62 m/s²
+  mpu.setGyroRange(MPU6050_RANGE_500_DEG);        // ±500 deg/s → ±8.73 rad/s
   Serial.println("MPU6050 ready.");
 
   connectWifi();

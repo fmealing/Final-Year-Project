@@ -1,10 +1,13 @@
 #define _USE_MATH_DEFINES
 #include <cmath>
+#include <algorithm>
 
-// Constants
-const int cutoffFrequency = 10; // Hz
+/* -------------------- Constants -------------------- */
+const int cutoffFrequency    = 10;    // Hz
+const float sensor_max_acc   = 19.62; // m/s^2, from sketch.ino
+const float sensor_max_gyro = 8.727;  // rad/s, from sketch.ino
 
-// Custum Types
+/* -------------------- Custum Types -------------------- */
 struct Vector3 {
     float x, y, z;
 };
@@ -20,6 +23,11 @@ struct LowPassFilter {
     bool initialised;
 };
 
+/* -------------------- HELPER FUNCTIONS -------------------- */
+// Helper function to clamp values between lo and hi
+static float clamp(float x, float low, float high) {
+    return x < low ? low : (x > high ? high : x);
+}
 
 /*
  * Function that applies a low pass filter to data from an IMU
@@ -61,3 +69,34 @@ ImuData applyLowPassFilter(ImuData current, LowPassFilter &filter) {
     filter.last_output = filtered;
     return filtered;
 }
+
+
+/*
+ * Normalise IMU data to [-1, 1]
+ * Input: ImuData imu_dat (acc in m/s^2, gyro in rad/s)
+ * Output: ImuData with all fields scaled to [-1, 1]
+ * 
+ * Equation: normalised = x / sensor_max
+ * where 
+ * - sensor_max for ac   = 19.62 m/s^2 (+/-2g, MPU6050_RANGE_2_G)
+ * - sensor_max for gyro = 8.727 rad/s (+/-500 deg/s, MPU6060_RAGE_500_DEG)
+*/
+ImuData normaliseImu(ImuData current){
+    ImuData normalised;
+
+    // Acceleration
+    normalised.acc.x = clamp(current.acc.x / sensor_max_acc, -1.0f, 1.0f);
+    normalised.acc.y = clamp(current.acc.y / sensor_max_acc, -1.0f, 1.0f);
+    normalised.acc.z = clamp(current.acc.z / sensor_max_acc, -1.0f, 1.0f);
+
+    // Gyro
+    normalised.gyro.x = clamp(current.gyro.x / sensor_max_gyro, -1.0f, 1.0f);
+    normalised.gyro.y = clamp(current.gyro.y / sensor_max_gyro, -1.0f, 1.0f);
+    normalised.gyro.z = clamp(current.gyro.z / sensor_max_gyro, -1.0f, 1.0f);
+
+    // Time
+    normalised.time_ms = current.time_ms;
+
+    return normalised;
+}
+
