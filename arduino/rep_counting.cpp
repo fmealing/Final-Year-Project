@@ -3,10 +3,12 @@
 #include <algorithm>
 
 /* -------------------- Constants -------------------- */
-const int cutoff_frequency_low_pass     = 10;    // Hz
-const float cutoff_frequency_high_pass  = 0.16;    // Hz
-const float sensor_max_acc              = 19.62; // m/s^2, from sketch.ino
-const float sensor_max_gyro             = 8.727; // rad/s, from sketch.ino
+const int cutoff_frequency_low_pass     = 10;       // Hz
+const int WINDOW_SAMPLES                = 100;      // 2s @ 50Hz
+const int MAX_INTERVALS                 = 10;
+const float cutoff_frequency_high_pass  = 0.16f;    // Hz
+const float sensor_max_acc              = 19.62f;   // m/s^2, from sketch.ino
+const float sensor_max_gyro             = 8.727f;   // rad/s, from sketch.ino
 const float MADGWICK_BETA               = 0.1f;
 
 /* -------------------- Custum Types -------------------- */
@@ -36,8 +38,26 @@ struct Quaternion {
 };
 
 struct Integrator { 
-    float value; // Accumulated output
+    float value;        // Accumulated output
     bool initialised;
+};
+
+struct SlidingWindow { 
+    float buffer[WINDOW_SAMPLES];   // ring buffer of displacement values
+    int head;                       // next write position
+    int count;                      // how many valid samples are stored
+};
+
+// A pair of timestamps (start and end of one active period)
+struct MotionInterval {
+    unsigned long start_ms;
+    unsigned long end_ms;
+};
+
+// Holds up to MAX_INTERVALS, plus a count of how many have been recorded
+struct MotionLog {
+    MotionInterval intervals[MAX_INTERVALS];
+    int count;
 };
 
 /* -------------------- HELPER FUNCTIONS -------------------- */
@@ -125,6 +145,21 @@ void updateMadgwick(Quaternion &q, ImuData current, float dt){
     q.y /= q_magnitude;
     q.z /= q_magnitude;
 }
+
+/*
+ * 1) Write the new value to the slot at head
+ * 2) Advance head. The % WINDOW_SAMPLES wraps it back to 0 when it reaches the end 
+ * -> this is what makes it a ring
+ * 3) Increment count, but only up to WINDOW_SAMPLES
+ * -> Once buffer is full, count stays at 100 and we just keep overwriting the oldest slot
+*/
+void addSample(SlidingWindow &window, float value) {
+    window.buffer[window.head] = value;
+    window.head = (window.head + 1) % WINDOW_SAMPLES;
+    if (window.count < WINDOW_SAMPLES) window.count++;
+}
+
+/* -------------------- Action Functions -------------------- */
 
 /*
  * Function that applies a low pass filter to data from an IMU
@@ -303,4 +338,43 @@ float applyHighPassFilter(float input, float dt, float cutoff_hz, HighPassFilter
     filter.last_input = input;
     filter.last_output = output;
     return output;
+}
+
+/*
+ * Input: SlidingWindow containing
+ * - buffer: ring buffer storing the last N displacement values
+ * - count: the number of valid samples stored (up to WINDOW_SAMPLES)
+ * - head: index of the next write position in the ring buffer
+ * 
+ * Output: calculated variance as a float
+ * 
+ * Equations:
+ * - Variance = (1/N) \* Sum(x_i - mean)^2
+ * 
+ * Constants required:
+ * - WINDOW_SAMPLES - size of the ring buffer (100 in this case)
+*/
+float computeVariance(SlidingWindow &window) {
+    if (window.count == 0) return 0.0f;
+
+    // Pass 1: compute mean
+    float sum = 0.0f;
+    for (int i = 0; i < window.count; i++) {
+        sum += window.buffer[i];
+    }
+    float mean = sum / window.count;
+
+    // Pass 2: compute variance
+    float sq_sum = 0.0f;
+    for (int i = 0; i < window.count; i++) {
+        float diff = window.buffer[i] - mean;
+        sq_sum += diff * diff;
+    }
+    return sq_sum / window.count;
+}
+
+void recordMotionInterval(MotionLog &log, unsigned long start_ms, unsigned long end_ms) {
+    if (log.count >= MAX_INTERVALS) return;
+    log.intervals[log.count] = {start_ms, end_ms};
+    log.count++
 }

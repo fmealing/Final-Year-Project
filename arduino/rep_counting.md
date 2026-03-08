@@ -69,7 +69,9 @@ FOR each data_point in displacement:
 - ConvertToGlobalFrame ✅
 - ExtractVerticalComponent ✅
 - Integrate ✅
-- HighPassFilter
+- HighPassFilter ✅
+- ComputeVariance
+- RecordMotionInterval
 
 ### Integrator Plan
 
@@ -88,3 +90,26 @@ where
 
 - alpha = RC / (RC + dt)
 - RC = 1 / (2 _ pi _ cutoffFrequency)
+
+**struct**
+struct HighPassFilter {
+float last_input;
+float last_output;
+bool initialised;
+}
+
+### ComputeVariance Plan
+
+- Function to compute the variance
+- Formula: Variance = (1/N) \* Sum(x_i - mean)^2
+- Two Pass approach
+- - Pass 1: compute mean over all N samples in the window
+- - Pass 2: compute sum of squared deviations from the mean, divide by N
+
+**struct**
+struct SlidingWindow {
+float buffer[WINDOW_SAMPLES]; // fixed-size ring buffer
+int head; // write index (oldes slot after wrap)
+int count; // valid samples currently held
+bool initialised;
+}
