@@ -3,10 +3,11 @@
 #include <algorithm>
 
 /* -------------------- Constants -------------------- */
-const int cutoffFrequency    = 10;    // Hz
-const float sensor_max_acc   = 19.62; // m/s^2, from sketch.ino
-const float sensor_max_gyro  = 8.727; // rad/s, from sketch.ino
-const float MADGWICK_BETA    = 0.1f;
+const int cutoff_frequency_low_pass     = 10;    // Hz
+const float cutoff_frequency_high_pass  = 0.16;    // Hz
+const float sensor_max_acc              = 19.62; // m/s^2, from sketch.ino
+const float sensor_max_gyro             = 8.727; // rad/s, from sketch.ino
+const float MADGWICK_BETA               = 0.1f;
 
 /* -------------------- Custum Types -------------------- */
 struct Vector3 {
@@ -14,13 +15,19 @@ struct Vector3 {
 };
 
 struct ImuData {
-    Vector3 acc; // g
-    Vector3 gyro; // rad/s
-    unsigned long time_ms; // millis()
+    Vector3 acc;            // g
+    Vector3 gyro;           // rad/s
+    unsigned long time_ms;  // millis()
 };
 
 struct LowPassFilter {
     ImuData last_output;
+    bool initialised;
+};
+
+struct HighPassFilter {
+    float last_input;
+    float last_output;
     bool initialised;
 };
 
@@ -130,6 +137,8 @@ void updateMadgwick(Quaternion &q, ImuData current, float dt){
  * - filtered[n-1] = previous filtered output
  * - alpha = dt / (dt + RC)
  * - RC = 1 / (2 * pi * cuttoffFrequency)
+ * Constants required:
+ * - cutoff_frequency_low_pass (int) — low-pass cutoff in Hz
 */
 ImuData applyLowPassFilter(ImuData current, LowPassFilter &filter) {
     // If the filter hasn't been initialised, just return the current data
@@ -141,7 +150,7 @@ ImuData applyLowPassFilter(ImuData current, LowPassFilter &filter) {
 
     // Caluclating the alpha value
     float dt = (current.time_ms - filter.last_output.time_ms) / 1000.0f;
-    float RC = 1.0f / (2.0f * M_PI * cutoffFrequency);
+    float RC = 1.0f / (2.0f * M_PI * cutoff_frequency_low_pass);
     float alpha = dt / (dt + RC);
 
     // Initialise the filtered ImuData value and populate with the filtered data (see equation)
@@ -262,4 +271,36 @@ float integrate (float input, float dt, Integrator &integrator){
         integrator.initialised = true;
     }
     integrator.value += input * dt;
+
+    return integrator.value;
+}
+
+/*
+ * Apply a high-pass filter to remove slow drift from integrated signals
+ * Input:   fload input             - current value (velocity or diplacement)
+ *          float dt                - time since last call in seconds
+ *          float cutoff_hz         - cutoff frequency in Hz
+ *          HighPassFilter &filter  - persistent state (update in place)
+ * Output:  float - filtered value with slow drift removed
+ * 
+ * Equation: filtered[n] = alpha * (filtered[n-1] + x[n] - x[n-1])
+ * where
+ * - alpha = RC / (RC + dt)
+ * - RC = 1 / (2 * pi * cutoffFrequency)
+*/
+float applyHighPassFilter(float input, float dt, float cutoff_hz, HighPassFilter &filter){
+    if (!filter.initialised) {
+        filter.last_input   = input;
+        filter.last_output  = 0.0f;
+        filter.initialised  = true;
+        return 0.0f;
+    }
+
+    float RC = 1.0f / (2.0f * M_PI * cutoff_hz);
+    float alpha = RC / (RC + dt);
+    float output = alpha * (filter.last_output + input - filter.last_input);
+
+    filter.last_input = input;
+    filter.last_output = output;
+    return output;
 }

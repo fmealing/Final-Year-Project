@@ -76,3 +76,15 @@ FOR each data_point in displacement:
 - The equation is output[n] = output[n-1] + value \* dt
 - Like LowPassFlter, an integrator needs to remember the previous output between calls
 - Implement a struct called Integrator with float value and bool initialised
+
+### High Pass Filter Plan
+
+- Low pass: keeps slow changes, remove fast noise -> alpha _ current + (1-alpha) _ previous
+- High pass: keeps fast changes, removes slow drift -> alpha \* (previous_output + current - previous_input)
+
+**Equation**
+filtered[n] = alpha \* (filtered[n-1] + x[n] - x[n-1])
+where
+
+- alpha = RC / (RC + dt)
+- RC = 1 / (2 _ pi _ cutoffFrequency)
