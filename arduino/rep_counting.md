@@ -62,11 +62,17 @@ FOR each data_point in displacement:
 -- -- -- LabelRep(start, deepest, end)
 -- -- MCSV = 0
 
-## Functions Required To Create
+## Functions Required To Create (for now)
 
 - LowPassFilter ✅
 - Normalise ✅
-- ConvertToGlobalFrame
-- ExtractVerticalComponent
-- Integrate
+- ConvertToGlobalFrame ✅
+- ExtractVerticalComponent ✅
+- Integrate ✅
 - HighPassFilter
+
+### Integrator Plan
+
+- The equation is output[n] = output[n-1] + value \* dt
+- Like LowPassFlter, an integrator needs to remember the previous output between calls
+- Implement a struct called Integrator with float value and bool initialised

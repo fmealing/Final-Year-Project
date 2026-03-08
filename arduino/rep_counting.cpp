@@ -28,6 +28,11 @@ struct Quaternion {
     float w, x, y, z;
 };
 
+struct Integrator { 
+    float value; // Accumulated output
+    bool initialised;
+};
+
 /* -------------------- HELPER FUNCTIONS -------------------- */
 // Helper function to clamp values between lo and hi
 static float clamp(float x, float low, float high) {
@@ -231,4 +236,30 @@ Vector3 ConvertToGlobalFrame (ImuData current){
 
     // Strip gravity and return
     return {rotated.x, rotated.y, rotated.z - 9.81f};
+}
+
+/*
+ * Extract the vertical (Z) component from a global-frame acceleration vector
+ * Input:  Vector3 global_acc — acceleration in world frame (m/s^2), gravity already removed
+ * Output: float — vertical acceleration (m/s^2), positive = upward
+*/
+float ExtractVerticalComponent(Vector3 global_acc) {
+    return global_acc.z;
+}
+
+/*
+ * Numerically integrate a scalar value over time (Euler method)
+ * Input:   float input - value to integrate (e.g. acceleration or velocity)
+ *          float dt    - time since last call in seconds
+ *          Integrator & integrator - persistent state (updated in place)
+ * Output:  float - accumulated integral (e.g. velocity or displacement)
+ * 
+ * Equation: output[n] = output[n-1] + input * dt
+*/
+float integrate (float input, float dt, Integrator &integrator){
+    if (!integrator.initialised){
+        integrator.value = 0.0f;
+        integrator.initialised = true;
+    }
+    integrator.value += input * dt;
 }
