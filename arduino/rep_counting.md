@@ -63,3 +63,10 @@ FOR each data_point in displacement:
 -- -- MCSV = 0
 
 ## Functions Required To Create
+
+- LowPassFilter ✅
+- Normalise ✅
+- ConvertToGlobalFrame
+- ExtractVerticalComponent
+- Integrate
+- HighPassFilter
