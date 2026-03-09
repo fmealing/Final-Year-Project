@@ -70,8 +70,8 @@ FOR each data_point in displacement:
 - ExtractVerticalComponent ✅
 - Integrate ✅
 - HighPassFilter ✅
-- ComputeVariance
-- RecordMotionInterval
+- ComputeVariance ✅
+- RecordMotionInterval ✅
 
 ### Integrator Plan
 

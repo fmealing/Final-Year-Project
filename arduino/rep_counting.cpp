@@ -10,6 +10,7 @@ const float cutoff_frequency_high_pass  = 0.16f;    // Hz
 const float sensor_max_acc              = 19.62f;   // m/s^2, from sketch.ino
 const float sensor_max_gyro             = 8.727f;   // rad/s, from sketch.ino
 const float MADGWICK_BETA               = 0.1f;
+const float VAR_THRESHOLD               = 0.01f;    // lowered for simulation (tune with real data)
 
 /* -------------------- Custum Types -------------------- */
 struct Vector3 {
@@ -373,8 +374,18 @@ float computeVariance(SlidingWindow &window) {
     return sq_sum / window.count;
 }
 
+/*
+ * Input:   MotionLog &log          - persistent log of recorded motion intervals
+ *          unsigned long start_ms  - timestamp when active motion began (from millis())
+ *          unsigned long end_ms    - timestamp when active motion ended (from millis())
+ *
+ * Output: void - appends a new MotionInterval to log.intervals and increments log.count
+ * 
+ * Constants required: 
+ * - MAX_INTERVALS - maximum number of intervals the log can store (10 in this case)
+*/
 void recordMotionInterval(MotionLog &log, unsigned long start_ms, unsigned long end_ms) {
     if (log.count >= MAX_INTERVALS) return;
     log.intervals[log.count] = {start_ms, end_ms};
-    log.count++
+    log.count++;
 }
