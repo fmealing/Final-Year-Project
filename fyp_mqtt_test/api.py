@@ -57,8 +57,9 @@ def ingest():
             INSERT INTO telemetry (
                 received_utc, device_id, ts_ms,
                 flex1, flex2, flex3, flex4,
-                ax, ay, az, gx, gy, gz
-            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ax, ay, az, gx, gy, gz,
+                rep_count
+            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """, (
             __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat(),
             body.get("device_id"),
@@ -66,6 +67,7 @@ def ingest():
             flex[0], flex[1], flex[2], flex[3],
             imu.get("ax"), imu.get("ay"), imu.get("az"),
             imu.get("gx"), imu.get("gy"), imu.get("gz"),
+            body.get("rep_count"),
         ))
         conn.commit()
         conn.close()

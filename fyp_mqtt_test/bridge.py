@@ -40,8 +40,12 @@ def init_db():
             az           DOUBLE PRECISION,
             gx           DOUBLE PRECISION,
             gy           DOUBLE PRECISION,
-            gz           DOUBLE PRECISION
+            gz           DOUBLE PRECISION,
+            rep_count    INTEGER
         )
+    """)
+    cur.execute("""
+        ALTER TABLE telemetry ADD COLUMN IF NOT EXISTS rep_count INTEGER
     """)
     conn.commit()
     conn.close()
@@ -55,9 +59,10 @@ def insert_data(payload):
         INSERT INTO telemetry (
             received_utc, device_id, ts_ms,
             flex1, flex2, flex3, flex4,
-            ax, ay, az, gx, gy, gz
+            ax, ay, az, gx, gy, gz,
+            rep_count
         )
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
     """, (
         datetime.now(timezone.utc).isoformat(),
         payload["device_id"],
@@ -72,6 +77,7 @@ def insert_data(payload):
         payload["imu"]["gx"],
         payload["imu"]["gy"],
         payload["imu"]["gz"],
+        payload.get("rep_count"),
     ))
     conn.commit()
     conn.close()
