@@ -1,4 +1,4 @@
-#include "rep_counting.cpp"
+#include "rep_counting.h"
 
 ImuData simulateImu(unsigned long time_ms) {
     float t = time_ms / 1000.0f;

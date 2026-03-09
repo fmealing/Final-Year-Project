@@ -4,6 +4,7 @@
 #include <WiFiClientSecure.h>
 #include <Adafruit_MPU6050.h>
 #include <Adafruit_Sensor.h>
+#include "rep_counting.h"
 
 // ── WiFi credentials ──────────────────────────────────────────────────────────
 const char* WIFI_SSID     = "Florian";
@@ -23,6 +24,31 @@ const int SCL_PIN    = 22;
 
 // ── Globals ───────────────────────────────────────────────────────────────────
 Adafruit_MPU6050 mpu;
+
+// ── Rep analysis state (persists between loop() calls) ───────────────────────
+LowPassFilter   lpf         = {{}, false};
+Integrator      vel_int     = {0.0f, false};
+Integrator      disp_int    = {0.0f, false};
+HighPassFilter  vel_hpf     = {0.0f, 0.0f, false};
+HighPassFilter  disp_hpf    = {0.0f, 0.0f, false};
+SlidingWindow   window      = {{}, 0, 0};
+MotionLog       mlog        = {{}, 0};
+
+const float MAX_THRESHOLD   = 0.15f;
+const float MIN_THRESHOLD   = -0.15f;
+
+int   MIDSV             = 0;
+int   consec_above      = 0;
+int   consec_below      = 0;
+unsigned long motion_start_ms = 0;
+
+int   MCSV              = 0;
+int   rep_count         = 0;
+float prev_disp         = 0.0f;
+float prev_prev_disp    = 0.0f;
+unsigned long rep_start_ms   = 0;
+unsigned long rep_deepest_ms = 0;
+unsigned long last_sample_ms = 0;
 
 // ── WiFi connect ──────────────────────────────────────────────────────────────
 void connectWifi() {
@@ -58,34 +84,97 @@ void setup() {
 void loop() {
   if (WiFi.status() != WL_CONNECTED) connectWifi();
 
-  // Read flex sensors
+  // ── Read sensors ────────────────────────────────────────────────────────────
   int f1 = analogRead(FLEX_PIN_1);
   int f2 = analogRead(FLEX_PIN_2);
   int f3 = analogRead(FLEX_PIN_3);
   int f4 = analogRead(FLEX_PIN_4);
 
-  // Read IMU
   sensors_event_t a, g, temp;
   mpu.getEvent(&a, &g, &temp);
 
-  // Build JSON payload
+  // ── Rep analysis (one sample at a time) ─────────────────────────────────────
+  unsigned long now = millis();
+  float dt = (last_sample_ms == 0) ? 0.02f : (now - last_sample_ms) / 1000.0f;
+  last_sample_ms = now;
+
+  ImuData raw;
+  raw.time_ms = now;
+  raw.acc  = { a.acceleration.x, a.acceleration.y, a.acceleration.z };
+  raw.gyro = { g.gyro.x, g.gyro.y, g.gyro.z };
+
+  ImuData filtered    = applyLowPassFilter(raw, lpf);
+  Vector3 global_acc  = ConvertToGlobalFrame(filtered);
+  float vert_acc      = ExtractVerticalComponent(global_acc);
+
+  float velocity      = integrate(vert_acc, dt, vel_int);
+  velocity            = applyHighPassFilter(velocity, dt, cutoff_frequency_high_pass, vel_hpf);
+
+  float displacement  = integrate(velocity, dt, disp_int);
+  displacement        = applyHighPassFilter(displacement, dt, cutoff_frequency_high_pass, disp_hpf);
+
+  addSample(window, displacement);
+  float variance = computeVariance(window);
+
+  // MIDSV — motion interval detection
+  if (MIDSV == 0) {
+    if (variance > VAR_THRESHOLD) consec_above++;
+    else consec_above = 0;
+    if (consec_above >= 10) {
+      motion_start_ms = now;
+      MIDSV = 1;
+      consec_above = 0;
+    }
+  } else if (MIDSV == 1) {
+    if (variance < VAR_THRESHOLD) consec_below++;
+    else consec_below = 0;
+    if (consec_below >= 5) {
+      recordMotionInterval(mlog, motion_start_ms, now);
+      MIDSV = 0;
+      consec_below = 0;
+    }
+  }
+
+  // MCSV — rep counting
+  bool is_local_max = (prev_disp > prev_prev_disp) && (prev_disp > displacement);
+  bool is_local_min = (prev_disp < prev_prev_disp) && (prev_disp < displacement);
+
+  if (MCSV == 0 && is_local_max && prev_disp > 0.3f * MAX_THRESHOLD) {
+    rep_start_ms = now;
+    MCSV = 1;
+  } else if (MCSV == 1 && is_local_min && prev_disp < 0.3f * MIN_THRESHOLD) {
+    rep_deepest_ms = now;
+    MCSV = 2;
+  } else if (MCSV == 2 && is_local_max && prev_disp > 0.3f * MAX_THRESHOLD) {
+    if (rep_deepest_ms > rep_start_ms && now > rep_deepest_ms) {
+      rep_count++;
+      Serial.printf("[REP] Count: %d\n", rep_count);
+    }
+    MCSV = 0;
+  }
+
+  prev_prev_disp = prev_disp;
+  prev_disp = displacement;
+
+  // ── POST to API ─────────────────────────────────────────────────────────────
   char payload[256];
   snprintf(payload, sizeof(payload),
     "{\"device_id\":\"%s\","
     "\"ts_ms\":%lu,"
     "\"flex\":[%d,%d,%d,%d],"
+    "\"rep_count\":%d,"
     "\"imu\":{\"ax\":%.3f,\"ay\":%.3f,\"az\":%.3f,"
              "\"gx\":%.3f,\"gy\":%.3f,\"gz\":%.3f}}",
     DEVICE_ID,
-    millis(),
+    now,
     f1, f2, f3, f4,
+    rep_count,
     a.acceleration.x, a.acceleration.y, a.acceleration.z,
     g.gyro.x, g.gyro.y, g.gyro.z
   );
 
-  // POST to API
   WiFiClientSecure client;
-  client.setInsecure();  // skip cert verification for simplicity
+  client.setInsecure();
 
   HTTPClient http;
   http.begin(client, INGEST_URL);
@@ -95,5 +184,5 @@ void loop() {
   Serial.printf("POST %d: %s\n", code, payload);
   http.end();
 
-  delay(200);  // 5 Hz
+  delay(20);  // 50 Hz
 }
