@@ -13,4 +13,6 @@ export interface TelemetryRow {
   gx: number;
   gy: number;
   gz: number;
+  rep_count: number | null;
+  displacement: number | null;
 }
