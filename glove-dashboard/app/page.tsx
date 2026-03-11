@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import useSWR from "swr";
 import { TelemetryRow } from "@/lib/types";
 import StatusBadge from "@/components/StatusBadge";
@@ -44,6 +45,13 @@ export default function Dashboard() {
     isLive && latest && !("error" in latest) ? latest : null;
   const historyData: TelemetryRow[] =
     history && !("error" in history) ? history : [];
+
+  const [maxRepCount, setMaxRepCount] = useState(0);
+  useEffect(() => {
+    if (liveData?.rep_count != null && liveData.rep_count > maxRepCount) {
+      setMaxRepCount(liveData.rep_count);
+    }
+  }, [liveData?.rep_count]);
 
   return (
     <div className="min-h-screen" style={{ background: "var(--canvas)" }}>
@@ -162,55 +170,61 @@ export default function Dashboard() {
         {/* Divider */}
         <div style={{ borderTop: "1px solid var(--rim)" }} />
 
-        {/* Coming soon */}
+        {/* Rep & Displacement */}
         <section>
-          <SectionLabel>In Development</SectionLabel>
+          <SectionLabel>Session Metrics</SectionLabel>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {[
-              {
-                label: "Rep Counter",
-                value: "—",
-                hint: "Automatic repetition detection",
-              },
-              {
-                label: "Weight Load",
-                value: "— kg",
-                hint: "Estimated barbell weight from IMU",
-              },
-            ].map((item) => (
-              <div
-                key={item.label}
-                className="rounded-lg p-6 flex flex-col gap-3 select-none"
+            <div
+              className="rounded-lg p-6 flex flex-col gap-3"
+              style={{ background: "var(--card)", border: "1px solid var(--rim)" }}
+            >
+              <p
+                className="text-xs tracking-[0.18em] uppercase"
+                style={{ color: "var(--muted)", fontFamily: "var(--font-barlow)" }}
+              >
+                Rep Counter
+              </p>
+              <p
+                className="text-5xl"
                 style={{
-                  background: "var(--card)",
-                  border: "1px dashed var(--rim-bright)",
-                  opacity: 0.45,
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--lime)",
+                  fontWeight: 700,
                 }}
               >
-                <p
-                  className="text-xs tracking-[0.18em] uppercase"
-                  style={{
-                    color: "var(--muted)",
-                    fontFamily: "var(--font-barlow)",
-                  }}
-                >
-                  {item.label}
-                </p>
-                <p
-                  className="text-4xl"
-                  style={{
-                    fontFamily: "var(--font-mono)",
-                    color: "var(--subtle)",
-                    fontWeight: 400,
-                  }}
-                >
-                  {item.value}
-                </p>
-                <p className="text-xs" style={{ color: "var(--subtle)" }}>
-                  {item.hint}
-                </p>
-              </div>
-            ))}
+                {maxRepCount}
+              </p>
+              <p className="text-xs" style={{ color: "var(--subtle)" }}>
+                Automatic repetition detection · session total
+              </p>
+            </div>
+
+            <div
+              className="rounded-lg p-6 flex flex-col gap-3"
+              style={{ background: "var(--card)", border: "1px solid var(--rim)" }}
+            >
+              <p
+                className="text-xs tracking-[0.18em] uppercase"
+                style={{ color: "var(--muted)", fontFamily: "var(--font-barlow)" }}
+              >
+                Displacement
+              </p>
+              <p
+                className="text-5xl"
+                style={{
+                  fontFamily: "var(--font-mono)",
+                  color: "var(--text)",
+                  fontWeight: 400,
+                }}
+              >
+                {liveData?.displacement != null
+                  ? `${liveData.displacement.toFixed(3)} m`
+                  : "—"}
+              </p>
+              <p className="text-xs" style={{ color: "var(--subtle)" }}>
+                Current movement magnitude
+              </p>
+            </div>
           </div>
         </section>
 
