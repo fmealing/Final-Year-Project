@@ -218,7 +218,7 @@ export default function Dashboard() {
                 }}
               >
                 {liveData?.displacement != null
-                  ? `${liveData.displacement.toFixed(3)} m`
+                  ? `${Number(liveData.displacement).toFixed(3)} m`
                   : "—"}
               </p>
               <p className="text-xs" style={{ color: "var(--subtle)" }}>
