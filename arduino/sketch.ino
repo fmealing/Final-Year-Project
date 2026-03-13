@@ -13,12 +13,12 @@ const char* INGEST_URL = "https://glove-trainer-api.onrender.com/ingest";
 const char* DEVICE_ID  = "glove_01";
 
 // ── Pin assignments ────────────────────────────────────────────────────────
-const int FLEX_PIN_1 = 26;
-const int FLEX_PIN_2 = 25; 
-const int FLEX_PIN_3 = 14; 
-const int FLEX_PIN_4 = 15;
-const int SDA_PIN = 23;
-const int SCL_PIN = 22;
+const int FLEX_PIN_1  = 26;
+const int FLEX_PIN_2  = 25; 
+const int FLEX_PIN_3  = 14; 
+const int FLEX_PIN_4  = 15;
+const int SDA_PIN     = 23;
+const int SCL_PIN     = 22;
 
 // ── IMU bias corrections (from calibrate_imu.ino) ─────────────────────────
 // Subtract from raw readings to remove systematic sensor offset.
