@@ -11,7 +11,7 @@ const float cutoff_frequency_high_pass  = 0.16f;    // Hz
 const float sensor_max_acc              = 19.62f;   // m/s^2, from sketch.ino
 const float sensor_max_gyro             = 8.727f;   // rad/s, from sketch.ino
 const float MADGWICK_BETA               = 0.1f;
-const float VAR_THRESHOLD               = 0.01f;    // lowered for simulation (tune with real data)
+const float VAR_THRESHOLD               = 0.30f;    // (m/s²)² — rest ≈0.02, light motion ≈0.5, full curl ≈12
 
 /* -------------------- Custum Types -------------------- */
 struct Vector3 {
@@ -389,4 +389,24 @@ void recordMotionInterval(MotionLog &log, unsigned long start_ms, unsigned long 
     if (log.count >= MAX_INTERVALS) return;
     log.intervals[log.count] = {start_ms, end_ms};
     log.count++;
+}
+
+/*
+ * Compute vector-magnitude acceleration centred on 1g (drift-free, orientation-independent)
+ * Input:  ImuData current (acc in m/s^2)
+ * Output: float — sqrt(ax² + ay² + az²) − 9.81, approximately 0 when stationary
+ *
+ * Why this beats double integration:
+ * - No integration at all → zero accumulated drift
+ * - Works regardless of how the sensor is oriented on the wrist
+ * - During a rep the total acceleration magnitude rises and falls in a clean
+ *   sinusoidal pattern that is easy to peak-detect
+ *
+ * Usage: apply applyLowPassFilter() first (removes high-freq noise),
+ * then applyHighPassFilter() on the result (removes the small DC residual
+ * left after subtracting nominal 9.81 and any sensor bias).
+ */
+float computeVMAccel(ImuData current) {
+    float ax = current.acc.x, ay = current.acc.y, az = current.acc.z;
+    return sqrtf(ax*ax + ay*ay + az*az) - 9.81f;
 }
