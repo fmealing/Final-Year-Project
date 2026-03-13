@@ -16,7 +16,7 @@ The glove enclosure and electronics housing were designed in Fusion 360 to secur
 
 ## Hardware Prototype
 
-![Prototype](images/prototype2.png)
+![Prototype](images/prototype3.png)
 
 The hardware was assembled using an ESP32 Feather development board, flex sensors, and an MPU6050 IMU. All components were soldered onto a vero board and integrated into the glove.
 
