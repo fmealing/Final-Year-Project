@@ -7,6 +7,8 @@ import psycopg2.extras
 from flask import Flask, jsonify, request
 from dotenv import load_dotenv
 
+from analytics import compute_analytics
+
 logging.basicConfig(
     level=logging.DEBUG,
     format="%(asctime)s [%(levelname)s] %(message)s",
@@ -105,7 +107,7 @@ def latest():
 
 @app.route("/last_n")
 def last_n():
-    n = request.args.get("n", default=50, type=int)
+    n = request.args.get("n", default=100, type=int)
     log.info("GET /last_n n=%d", n)
     try:
         rows = query_db(
@@ -117,6 +119,25 @@ def last_n():
         return jsonify({"error": str(e)}), 500
     log.debug("/last_n returning %d rows", len(rows))
     return jsonify([dict(r) for r in rows])
+
+
+@app.route("/analytics")
+def analytics():
+    log.info("GET /analytics")
+    try:
+        rows = query_db(
+            "SELECT ts_ms, received_utc, flex1, flex2, flex3, flex4, ax, ay, az FROM telemetry ORDER BY ts_ms ASC"
+        )
+    except Exception as e:
+        log.error("/analytics error: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+    result = compute_analytics([dict(r) for r in rows])
+    if result is None:
+        return jsonify({"error": "no data"}), 404
+
+    log.debug("/analytics: computed stats over %d rows", result["sample_count"])
+    return jsonify(result)
 
 
 if __name__ == "__main__":
