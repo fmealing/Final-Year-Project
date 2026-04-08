@@ -8,7 +8,7 @@ A smart gym glove that automatically tracks strength training sessions in real t
 
 ---
 
-![Logo](images_new/Logo.png)
+<img src="images_new/Logo.png" width="220" alt="Logo" />
 
 ---
 
@@ -28,22 +28,22 @@ Every session the glove records your performance and builds a ghost, a data-driv
 
 Jamie is 24. The first two times he went hard for about three weeks, got bored, stopped seeing the point, and quietly let the membership lapse. This time he bought the glove because his flatmate would not stop talking about it.
 
-**Day 1**
+**Day 1**<br>
 He opens the app, pairs the glove, and gets told something he does not expect. "Your first session builds your opponent." There is no pressure, no benchmark to hit. He just trains, and the app watches. At the end he sees his avatar for the first time: weak, minimal gear, barely any aura. The app tells him: "This is January Jamie. You are going to make him irrelevant." He thinks it is a bit corny. He also screenshots it.
 
-**Week 1**
+**Week 1**<br>
 He trains twice. Nothing dramatic. The audio cues during sets are strange at first. But on his third session it tells him "you slowed down here last time" at rep six of a dumbbell row, and he pushes to rep eight out of pure stubbornness. He does not think much of it in the moment. But he remembers it on the walk home.
 
-**Week 2**
+**Week 2**<br>
 His consistency gear updates. Small change to the avatar, slightly better armour. He notices. He has not missed a session yet and the app reflects that without making a big deal of it. He shows his flatmate. His flatmate points out his ghost still looks terrible. Jamie goes to the gym the next morning.
 
-**Week 3**
+**Week 3**<br>
 First real ghost comparison drops. Current Jamie vs Week 1 Jamie on the same exercise. The gap is small but real: three more quality reps at the same weight. At the end of the set the app says: "you beat him." No fanfare. Just that. He stares at his phone for a second. This is the moment, not because the progress is huge, but because for the first time the progress is his, measured against himself.
 
-**Week 6**
+**Week 6**<br>
 Jamie is training three times a week now. He did not decide to; it just happened. Some sessions he loses, and the app does not punish him for it. It just updates the data. He has stopped thinking about what other people in the gym can lift. He has got his own thing to beat.
 
-**Six months in**
+**Six months in**<br>
 The six-month ghost appears for the first time. January Jamie, full avatar, standing next to current Jamie. The difference is visible across all three axes: bigger build, full gear set, bright aura. Jamie sends it to his flatmate without saying anything. His flatmate buys a glove the next day.
 
 ---
@@ -58,9 +58,9 @@ The journey was designed before a single line of code was written. Three core ph
 | **Track & Respond**  | Reps counted automatically. App tracks proximity to failure in real time.                            |
 | **Review & Evolve**  | Set complete. App adjusts the next target automatically and shows what you achieved.                 |
 
-![User Journey 1](images_new/Ghost_Glove_User_Journey_1.png)
-![User Journey 2](images_new/Ghost_Glove_User_Journey_2.png)
-![User Journey 3](images_new/Ghost_Glove_User_Journey_3.png)
+<img src="images_new/Ghost_Glove_User_Journey_1.png" width="600" alt="User Journey 1" />
+<img src="images_new/Ghost_Glove_User_Journey_2.png" width="600" alt="User Journey 2" />
+<img src="images_new/Ghost_Glove_User_Journey_3.png" width="600" alt="User Journey 3" />
 
 _Initial concept sketches, 16/03/26_
 
@@ -80,9 +80,9 @@ Your avatar evolves across three axes, each mapped to a real training metric:
 
 The ghost system operates across two timescales: a **4-week ghost** (your recent self) and a **6-month ghost** (who you were at the start). Beating one feels like momentum. Beating the other feels like transformation.
 
-![Gamification Idea Sketch](images_new/Gamification_Idea.jpeg)
-![Avatar Weightlifting Sketch](images_new/Avatar_Weightlifting_1.PNG)
-![Avatar Squash Sketch](images_new/Avatar_Squash_1.PNG)
+<img src="images_new/Gamification_Idea.jpeg" width="380" alt="Gamification Idea Sketch" />
+<img src="images_new/Avatar_Weightlifting_1.PNG" width="280" alt="Avatar Weightlifting Sketch" />
+<img src="images_new/Avatar_Squash_1.PNG" width="280" alt="Avatar Squash Sketch" />
 
 _Left: Original gamification concept (28/03/26). Right: Sport-specific avatar sketches. The system is designed to extend beyond weightlifting._
 
@@ -92,15 +92,15 @@ _Left: Original gamification concept (28/03/26). Right: Sport-specific avatar sk
 
 Ghost Glove is a fully manufactured smart glove with permanently soldered electronics. The sensor stack:
 
-- **Flex Sensors (x4)** -- measure finger bend angle via resistive voltage dividers. Resistor value: 47 kOhm, derived from a geometric mean of approximately 43.3 kOhm, near-optimal for mid-flex sensitivity.
-- **MPU-6050 IMU** -- 6-DOF accelerometer and gyroscope for wrist orientation and motion. Used for rep counting via a Madgwick filter.
-- **ADS1115 ADC** -- 16-bit external ADC. Resolves the ADC2/WiFi conflict inherent to the ESP32 by handling all analog reads independently.
-- **ESP32-C3 Zero** -- the microcontroller. Compact, BLE-capable, runs FreeRTOS with separate sensor tasks.
+- **Flex Sensors (x4)**: measure finger bend angle via resistive voltage dividers. Resistor value: 47 kOhm, derived from a geometric mean of approximately 43.3 kOhm, near-optimal for mid-flex sensitivity.
+- **MPU-6050 IMU**: 6-DOF accelerometer and gyroscope for wrist orientation and motion. Used for rep counting via a Madgwick filter.
+- **ADS1115 ADC**: 16-bit external ADC. Resolves the ADC2/WiFi conflict inherent to the ESP32 by handling all analog reads independently.
+- **ESP32-C3 Zero**: the microcontroller. Compact, BLE-capable, runs FreeRTOS with separate sensor tasks.
 
 All components are mounted on a **5 cm x 7 cm veroboard**, permanently soldered and integrated into the glove.
 
-![Veroboard Layout](images_new/Vero_Board_Layout.jpg)
-![Electronic Schematic](images_new/Electronic_Schematic.png)
+<img src="images_new/Vero_Board_Layout.jpg" width="420" alt="Veroboard Layout" />
+<img src="images_new/Electronic_Schematic.png" width="500" alt="Electronic Schematic" />
 
 _Left: Hand-drawn veroboard layout. Right: EasyEDA schematic showing ESP32-C3 Zero, MPU-6050, ADS1115, and flex sensor voltage dividers._
 
@@ -144,9 +144,9 @@ Data flow has been validated end-to-end. Upload frequency is approximately 0.31 
 
 ### Backend
 
-- **HiveMQ** -- cloud MQTT broker
-- **NeonSQL** -- PostgreSQL-compatible serverless database
-- **Flask API** -- hosted on AWS, bridges MQTT data to the web dashboard
+- **HiveMQ**: Cloud MQTT broker
+- **NeonSQL**: PostgreSQL-compatible serverless database
+- **Flask API**: Hosted on AWS, bridges MQTT data to the web dashboard
 
 ### Dashboard
 
@@ -156,14 +156,14 @@ Live web interface showing rep counts and sensor readings in real time.
 
 ## Results
 
-| Metric                | Result                                                            |
-| --------------------- | ----------------------------------------------------------------- |
-| Rep counting accuracy | ~61% (averaged over 4 sets)                                       |
-| IMU pipeline          | Fully validated -- raw accelerometer and gyroscope data confirmed |
-| Connectivity          | ESP32 to HiveMQ to NeonSQL to Flask to Dashboard: working         |
-| Upload frequency      | ~0.31 Hz                                                          |
-| Glove manufacture     | Veroboard permanently soldered and integrated                     |
-| Flex sensors          | Hardware fault under investigation -- returning null values       |
+| Metric                | Result                                                          |
+| --------------------- | --------------------------------------------------------------- |
+| Rep counting accuracy | ~61% (averaged over 4 sets)                                     |
+| IMU pipeline          | Fully validated; raw accelerometer and gyroscope data confirmed |
+| Connectivity          | ESP32 to HiveMQ to NeonSQL to Flask to Dashboard: working       |
+| Upload frequency      | ~0.31 Hz                                                        |
+| Glove manufacture     | Veroboard permanently soldered and integrated                   |
+| Flex sensors          | Hardware fault under investigation; returning null values       |
 
 The system works reliably on slow, controlled reps. Fast or jerky movements cause false positives due to threshold sensitivity. Threshold tuning for dynamic rep detection is the primary in-progress item.
 
@@ -173,7 +173,7 @@ The system works reliably on slow, controlled reps. Fast or jerky movements caus
 
 The app has a defined visual language built to feel like a training tool, not a health tracker.
 
-![Style Guide](images_new/Style_Guide.png)
+<img src="images_new/Style_Guide.png" width="600" alt="Style Guide" />
 
 | Token                    | Value         |
 | ------------------------ | ------------- |
@@ -193,12 +193,12 @@ Space Grotesk carries the narrative. Space Mono delivers the data. The type scal
 
 ### Hardware
 
-- [ ] Resolve flex sensor hardware fault and investigate null value root cause
+- [x] Resolve flex sensor hardware fault and investigate null value root cause
 - [ ] Custom PCB to replace veroboard and reduce enclosure size
 - [ ] Piezoresistive TPU filament as an alternative flex sensing material
 - [ ] Pressure Sensor Design 2: per-finger air bladder system with thin-profile construction
 
-![Pressure Sensor Design](images_new/Pressure_Sensor_Design.PNG)
+<img src="images_new/Pressure_Sensor_Design.PNG" width="420" alt="Pressure Sensor Design" />
 
 _V3 concept: per-finger air bladders with joint-level pressure sensing. Each bladder is sized differently and routes to a wrist-mounted data capture unit._
 
@@ -216,9 +216,9 @@ _V3 concept: per-finger air bladders with joint-level pressure sensing. Each bla
 
 This project was submitted as a Final Year Project for the MEng Mechatronic and Robotic Engineering degree at the University of Birmingham, under the supervision of **Dr Mahvish Nazir**.
 
-![FYP Poster](images_new/Final_Year_Project_Poster.png)
+<img src="images_new/Final_Year_Project_Poster.png" width="620" alt="FYP Poster" />
 
-**TRL Assessment: TRL 3** -- subsystems validated independently. Simultaneous flex sensor and IMU transmission has been identified as the key hardware blocker preventing TRL 4.
+**TRL Assessment: TRL 3**: subsystems validated independently. Simultaneous flex sensor and IMU transmission has been identified as the key hardware blocker preventing TRL 4.
 
 **Project management:** Notion Kanban board with MoSCoW prioritisation. Every feature, issue, research paper, and task tracked across Not Started / In Progress / Complete.
 
@@ -245,6 +245,6 @@ This project was submitted as a Final Year Project for the MEng Mechatronic and 
 
 ---
 
-![Logo](images_new/Logo.png)
+<img src="images_new/Logo.png" width="220" alt="Logo" />
 
 _By Mealing Labs_
