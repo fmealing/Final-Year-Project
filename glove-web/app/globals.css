@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: #111310;
+  --color-primary: #39FF6A;
+  --color-secondary: #1F2E22;
+  --color-neutral: #8A9E8D;
+  --color-warning: #FF4444;
+  --color-white: #F0F7F1;
+
+  --font-grotesk: "Space Grotesk", sans-serif;
+  --font-mono: "Space Mono", monospace;
+}
+
+html,
+body {
+  background-color: #111310;
+  color: #F0F7F1;
+  font-family: "Space Grotesk", sans-serif;
+  min-height: 100%;
+}
+
+/* Subtle scanline texture for depth */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(57, 255, 106, 0.012) 2px,
+    rgba(57, 255, 106, 0.012) 4px
+  );
+  pointer-events: none;
+  z-index: 0;
+}
+
+#__next,
+main {
+  position: relative;
+  z-index: 1;
+}
