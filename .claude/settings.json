@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 -c \"import pandas, matplotlib; print\\('ok'\\)\")",
+      "Bash(python3 analysis.py)",
+      "Bash(python analysis.py)"
+    ]
+  }
+}

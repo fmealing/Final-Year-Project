@@ -4,22 +4,38 @@
 #include <algorithm>
 
 /* -------------------- Constants -------------------- */
-const int cutoff_frequency_low_pass     = 10;       // Hz
-const int WINDOW_SAMPLES                = 100;      // 2s @ 50Hz
-const int MAX_INTERVALS                 = 10;
-const float cutoff_frequency_high_pass  = 0.16f;    // Hz
+const int   cutoff_frequency_low_pass   = 10;       // Hz
+const int   WINDOW_SAMPLES              = 100;      // 2s @ 50Hz
+const int   MAX_INTERVALS               = 10;
+const float cutoff_frequency_high_pass  = 0.5f;     // Hz
 const float sensor_max_acc              = 19.62f;   // m/s^2, from sketch.ino
 const float sensor_max_gyro             = 8.727f;   // rad/s, from sketch.ino
 const float MADGWICK_BETA               = 0.1f;
-const float VAR_THRESHOLD               = 0.30f;    // (m/s²)² — rest ≈0.02, light motion ≈0.5, full curl ≈12
+const float VAR_THRESHOLD               = 0.30f;    // (m/s²)² — rest ≈0.02, curl ≈12
 
-/* -------------------- Custum Types -------------------- */
+// MIDSV thresholds
+const int   MIDSV_ENTER_MOTION_COUNT    = 10;       // consecutive high-var samples to enter MOTION
+const int   MIDSV_EXIT_MOTION_COUNT     = 5;        // consecutive low-var samples to return to REST
+
+// MCSV thresholds
+const float MCSV_PEAK_THRESHOLD         = 0.45f;    // m/s² — minimum VM for a valid peak
+const float MCSV_TROUGH_THRESHOLD       = -0.45f;   // m/s² — minimum VM for a valid trough
+
+// IMU bias values (measured at 50 Hz over 20,000 samples, stationary)
+const float BIAS_AX = -2.6284f;
+const float BIAS_AY = -0.2492f;
+const float BIAS_AZ = -0.0144f;
+const float BIAS_GX = -0.1175f;
+const float BIAS_GY =  0.0457f;
+const float BIAS_GZ = -0.004f;
+
+/* -------------------- Custom Types -------------------- */
 struct Vector3 {
     float x, y, z;
 };
 
 struct ImuData {
-    Vector3 acc;            // g
+    Vector3 acc;            // m/s^2
     Vector3 gyro;           // rad/s
     unsigned long time_ms;  // millis()
 };
@@ -39,158 +55,84 @@ struct Quaternion {
     float w, x, y, z;
 };
 
-struct Integrator { 
-    float value;        // Accumulated output
+struct Integrator {
+    float value;
     bool initialised;
 };
 
-struct SlidingWindow { 
-    float buffer[WINDOW_SAMPLES];   // ring buffer of displacement values
-    int head;                       // next write position
-    int count;                      // how many valid samples are stored
+struct SlidingWindow {
+    float buffer[WINDOW_SAMPLES];
+    int head;
+    int count;
 };
 
-// A pair of timestamps (start and end of one active period)
 struct MotionInterval {
     unsigned long start_ms;
     unsigned long end_ms;
 };
 
-// Holds up to MAX_INTERVALS, plus a count of how many have been recorded
 struct MotionLog {
     MotionInterval intervals[MAX_INTERVALS];
     int count;
 };
 
-/* -------------------- HELPER FUNCTIONS -------------------- */
-// Helper function to clamp values between lo and hi
+/* -------------------- MIDSV State -------------------- */
+enum MidsvState { MIDSV_REST, MIDSV_MOTION };
+
+/* -------------------- MCSV State -------------------- */
+enum McsvState { MCSV_IDLE, MCSV_ASCENDING, MCSV_DESCENDING };
+
+/* -------------------- Helper Functions -------------------- */
 static float clamp(float x, float low, float high) {
     return x < low ? low : (x > high ? high : x);
 }
 
-// Helper function to undo the rotation with a conjugate
-Quaternion conjugate(Quaternion q){
+Quaternion conjugate(Quaternion q) {
     return {q.w, -q.x, -q.y, -q.z};
 }
 
-// Helper function to rotate quarternions
 Quaternion multiplyQuarternions(Quaternion a, Quaternion b) {
     return {
-        a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,  // w
-        a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,  // x
-        a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,  // y
-        a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w   // z
+        a.w*b.w - a.x*b.x - a.y*b.y - a.z*b.z,
+        a.w*b.x + a.x*b.w + a.y*b.z - a.z*b.y,
+        a.w*b.y - a.x*b.z + a.y*b.w + a.z*b.x,
+        a.w*b.z + a.x*b.y - a.y*b.x + a.z*b.w
     };
-}
-
-/*
- * Update the Madgwick orientation filter
- * Input:  Quaternion q (current orientation, updated in place)
- *         ImuData current (acc in m/s^2, gyro in rad/s)
- *         float dt (time since last call in seconds)
- * Output: void — updates q directly via reference
- *
- * Steps:
- * 1. Normalise acc to a unit vector (direction of gravity only)
- * 2. Compute gradient — how far q is from the true orientation using acc as reference
- * 3. Integrate gyro to predict how q should change
- * 4. Apply correction (beta * gradient) and step forward by dt
- * 5. Renormalise q to keep it unit-length
- *
- * Constants required:
- * - MADGWICK_BETA (float) — filter gain (0.1 = balanced gyro/acc trust)
-*/
-void updateMadgwick(Quaternion &q, ImuData current, float dt){
-    float ax = current.acc.x, ay = current.acc.y, az = current.acc.z;
-    float gx = current.gyro.x, gy = current.gyro.y, gz = current.gyro.z;
-
-    // Normalise accelerometer (skip update if acc is zero)
-    float acc_magnitute = sqrt(ax*ax + ay*ay + az*az);
-    if (acc_magnitute == 0.0f) return;
-    ax /= acc_magnitute;
-    ay /= acc_magnitute;
-    az /= acc_magnitute;
-
-    // Gratient (how much to correct q based on acc error)
-    // Derived from Madgwick 2010, equation 25
-    float f1 = 2.0f*(q.x*q.z - q.w*q.y) - ax;
-    float f2 = 2.0f*(q.w*q.x + q.y*q.z) - ay;
-    float f3 = 2.0f*(0.5f - q.x*q.x - q.y*q.y) - az;
-
-    float s_w = -2.0f*q.y*f1 + 2.0f*q.x*f2;
-    float s_x =  2.0f*q.z*f1 + 2.0f*q.w*f2 - 4.0f*q.x*f3;
-    float s_y = -2.0f*q.w*f1 + 2.0f*q.z*f2 - 4.0f*q.y*f3;
-    float s_z =  2.0f*q.x*f1 + 2.0f*q.y*f2;
-
-    // Normalise the gradient
-    float s_mag = sqrt(s_w*s_w + s_x*s_x + s_y*s_y + s_z*s_z);
-    if (s_mag != 0.0f) { s_w /= s_mag; s_x /= s_mag; s_y /= s_mag; s_z /= s_mag; }
-
-    // Gyro expressed as a rate-of-change of 1 (Madgwick equation 12)
-    float q_dot_w = 0.5f*(-q.x*gx - q.y*gy - q.z*gz);
-    float q_dot_x = 0.5f*( q.w*gx + q.y*gz - q.z*gy);
-    float q_dot_y = 0.5f*( q.w*gy - q.x*gz + q.z*gx);
-    float q_dot_z = 0.5f*( q.w*gz + q.x*gy - q.y*gx);
-
-    // Apply correction & Integrate 
-    // Subtract the acc gradient (scaled by beta) then step forward by dt
-    q.w += (q_dot_w - MADGWICK_BETA * s_w) * dt;
-    q.x += (q_dot_x - MADGWICK_BETA * s_x) * dt;
-    q.y += (q_dot_y - MADGWICK_BETA * s_y) * dt;
-    q.z += (q_dot_z - MADGWICK_BETA * s_z) * dt;
-
-    // Renormalise q
-    // Quarternion must stay unit-length
-    float q_magnitude = sqrt(q.w*q.w + q.x*q.x + q.y*q.y +q.z*q.z);
-    q.w /= q_magnitude;
-    q.x /= q_magnitude;
-    q.y /= q_magnitude;
-    q.z /= q_magnitude;
-}
-
-/*
- * 1) Write the new value to the slot at head
- * 2) Advance head. The % WINDOW_SAMPLES wraps it back to 0 when it reaches the end 
- * -> this is what makes it a ring
- * 3) Increment count, but only up to WINDOW_SAMPLES
- * -> Once buffer is full, count stays at 100 and we just keep overwriting the oldest slot
-*/
-void addSample(SlidingWindow &window, float value) {
-    window.buffer[window.head] = value;
-    window.head = (window.head + 1) % WINDOW_SAMPLES;
-    if (window.count < WINDOW_SAMPLES) window.count++;
 }
 
 /* -------------------- Action Functions -------------------- */
 
 /*
- * Function that applies a low pass filter to data from an IMU
- * Inputs: current IMU data, the previous LowPassFilter result
- * Output: value of sensor with low-pass-filter
- * 
- * Equation: filtered[n] = alpha  * x[n] + (1 - alpha) * filtered[n-1]
- * where
- * - x[n] = current raw sample 
- * - filtered[n-1] = previous filtered output
- * - alpha = dt / (dt + RC)
- * - RC = 1 / (2 * pi * cuttoffFrequency)
- * Constants required:
- * - cutoff_frequency_low_pass (int) — low-pass cutoff in Hz
-*/
+ * Subtract calibrated bias values from raw IMU data
+ * Input:  ImuData raw
+ * Output: ImuData with bias removed
+ */
+ImuData applyBiasCorrection(ImuData current) {
+    current.acc.x  -= BIAS_AX;
+    current.acc.y  -= BIAS_AY;
+    current.acc.z  -= BIAS_AZ;
+    current.gyro.x -= BIAS_GX;
+    current.gyro.y -= BIAS_GY;
+    current.gyro.z -= BIAS_GZ;
+    return current;
+}
+
+/*
+ * Apply a low-pass filter to IMU data
+ * Equation: filtered[n] = alpha * x[n] + (1 - alpha) * filtered[n-1]
+ * Constants: cutoff_frequency_low_pass
+ */
 ImuData applyLowPassFilter(ImuData current, LowPassFilter &filter) {
-    // If the filter hasn't been initialised, just return the current data
     if (!filter.initialised) {
         filter.last_output = current;
         filter.initialised = true;
         return current;
     }
 
-    // Caluclating the alpha value
     float dt = (current.time_ms - filter.last_output.time_ms) / 1000.0f;
     float RC = 1.0f / (2.0f * M_PI * cutoff_frequency_low_pass);
     float alpha = dt / (dt + RC);
 
-    // Initialise the filtered ImuData value and populate with the filtered data (see equation)
     ImuData filtered;
     filtered.time_ms = current.time_ms;
 
@@ -206,130 +148,35 @@ ImuData applyLowPassFilter(ImuData current, LowPassFilter &filter) {
     return filtered;
 }
 
-
 /*
  * Normalise IMU data to [-1, 1]
- * Input:  ImuData current (acc in m/s^2, gyro in rad/s)
- * Output: ImuData with all fields clamped and scaled to [-1, 1]
- *
  * Equation: normalised = clamp(x / sensor_max, -1, 1)
- * where
- * - sensor_max for acc  = 19.62 m/s^2  (±2g,      MPU6050_RANGE_2_G,   set in sketch.ino)
- * - sensor_max for gyro = 8.727 rad/s  (±500°/s,  MPU6050_RANGE_500_DEG, set in sketch.ino)
- *
- * Constants required:
- * - sensor_max_acc  (float) — must match setAccelerometerRange() in sketch.ino
- * - sensor_max_gyro (float) — must match setGyroRange() in sketch.ino
- *
- * Helper required:
- * - clamp(x, lo, hi) — guards against noise spikes pushing values outside [-1, 1]
-*/
-ImuData normaliseImu(ImuData current){
+ */
+ImuData normaliseImu(ImuData current) {
     ImuData normalised;
 
-    // Acceleration
     normalised.acc.x = clamp(current.acc.x / sensor_max_acc, -1.0f, 1.0f);
     normalised.acc.y = clamp(current.acc.y / sensor_max_acc, -1.0f, 1.0f);
     normalised.acc.z = clamp(current.acc.z / sensor_max_acc, -1.0f, 1.0f);
 
-    // Gyro
     normalised.gyro.x = clamp(current.gyro.x / sensor_max_gyro, -1.0f, 1.0f);
     normalised.gyro.y = clamp(current.gyro.y / sensor_max_gyro, -1.0f, 1.0f);
     normalised.gyro.z = clamp(current.gyro.z / sensor_max_gyro, -1.0f, 1.0f);
 
-    // Time
     normalised.time_ms = current.time_ms;
-
     return normalised;
 }
 
 /*
- * Convert IMU acceleration from local sensor frame to global world frame
- * Input:  ImuData current (acc in m/s^2, gyro in rad/s)
- * Output: Vector3 — acceleration in the global frame (m/s^2)
- *
- * Uses the Madgwick filter to fuse acc + gyro into an orientation quaternion,
- * then rotates the acceleration vector into the world frame and removes gravity.
- *
- * Steps:
- * 1. Update Madgwick filter with current acc + gyro → orientation quaternion q
- * 2. Rotate acc vector using q: global_acc = q * acc * q_conjugate
- * 3. Subtract gravity: global_acc.z -= 9.81 (world Z is up)
- *
- * Constants required:
- * - MADGWICK_BETA (float) — filter gain, controls gyro/acc trust balance (typical: 0.1)
- *
- * State required (persists between calls):
- * - Quaternion q {w, x, y, z} — current orientation estimate, initialised to {1,0,0,0}
- *
- * Helper required:
- * - A Quaternion struct with multiply and conjugate operations
-*/
-Vector3 ConvertToGlobalFrame (ImuData current){
-    // q and previous timestamp must survive between calls, so they're static
-    static Quaternion q = {1.0f, 0.0f, 0.0f, 0.0f}; // identity = no rotation
-    static unsigned long last_time_ms = 0;
-
-    float dt = (current.time_ms - last_time_ms) / 1000.0f;
-    last_time_ms = current.time_ms;
-
-    updateMadgwick(q, current, dt);
-
-    // Rotate acc into world frame
-    // Treat the acc vector as a quaternion with w=0, then apply q * acc_q * q_conjugate
-    Quaternion acc_q = {0, current.acc.x, current.acc.y, current.acc.z};
-    Quaternion rotated = multiplyQuarternions(multiplyQuarternions(q, acc_q), conjugate(q));
-
-    // Strip gravity and return
-    return {rotated.x, rotated.y, rotated.z - 9.81f};
-}
-
-/*
- * Extract the vertical (Z) component from a global-frame acceleration vector
- * Input:  Vector3 global_acc — acceleration in world frame (m/s^2), gravity already removed
- * Output: float — vertical acceleration (m/s^2), positive = upward
-*/
-float ExtractVerticalComponent(Vector3 global_acc) {
-    return global_acc.z;
-}
-
-/*
- * Numerically integrate a scalar value over time (Euler method)
- * Input:   float input - value to integrate (e.g. acceleration or velocity)
- *          float dt    - time since last call in seconds
- *          Integrator & integrator - persistent state (updated in place)
- * Output:  float - accumulated integral (e.g. velocity or displacement)
- * 
- * Equation: output[n] = output[n-1] + input * dt
-*/
-float integrate (float input, float dt, Integrator &integrator){
-    if (!integrator.initialised){
-        integrator.value = 0.0f;
-        integrator.initialised = true;
-    }
-    integrator.value += input * dt;
-
-    return integrator.value;
-}
-
-/*
- * Apply a high-pass filter to remove slow drift from integrated signals
- * Input:   fload input             - current value (velocity or diplacement)
- *          float dt                - time since last call in seconds
- *          float cutoff_hz         - cutoff frequency in Hz
- *          HighPassFilter &filter  - persistent state (update in place)
- * Output:  float - filtered value with slow drift removed
- * 
+ * Apply a high-pass filter to a scalar signal
  * Equation: filtered[n] = alpha * (filtered[n-1] + x[n] - x[n-1])
- * where
- * - alpha = RC / (RC + dt)
- * - RC = 1 / (2 * pi * cutoffFrequency)
-*/
-float applyHighPassFilter(float input, float dt, float cutoff_hz, HighPassFilter &filter){
+ * where alpha = RC / (RC + dt), RC = 1 / (2 * pi * cutoff_hz)
+ */
+float applyHighPassFilter(float input, float dt, float cutoff_hz, HighPassFilter &filter) {
     if (!filter.initialised) {
-        filter.last_input   = input;
-        filter.last_output  = 0.0f;
-        filter.initialised  = true;
+        filter.last_input  = input;
+        filter.last_output = 0.0f;
+        filter.initialised = true;
         return 0.0f;
     }
 
@@ -337,36 +184,40 @@ float applyHighPassFilter(float input, float dt, float cutoff_hz, HighPassFilter
     float alpha = RC / (RC + dt);
     float output = alpha * (filter.last_output + input - filter.last_input);
 
-    filter.last_input = input;
+    filter.last_input  = input;
     filter.last_output = output;
     return output;
 }
 
 /*
- * Input: SlidingWindow containing
- * - buffer: ring buffer storing the last N displacement values
- * - count: the number of valid samples stored (up to WINDOW_SAMPLES)
- * - head: index of the next write position in the ring buffer
- * 
- * Output: calculated variance as a float
- * 
- * Equations:
- * - Variance = (1/N) \* Sum(x_i - mean)^2
- * 
- * Constants required:
- * - WINDOW_SAMPLES - size of the ring buffer (100 in this case)
-*/
+ * Compute vector-magnitude acceleration centred on 1g
+ * Output: sqrt(ax² + ay² + az²) − 9.81, ≈ 0 when stationary
+ */
+float computeVMAccel(ImuData current) {
+    float ax = current.acc.x, ay = current.acc.y, az = current.acc.z;
+    return sqrtf(ax*ax + ay*ay + az*az) - 9.81f;
+}
+
+/*
+ * Add a sample to the sliding window ring buffer
+ */
+void addSample(SlidingWindow &window, float value) {
+    window.buffer[window.head] = value;
+    window.head = (window.head + 1) % WINDOW_SAMPLES;
+    if (window.count < WINDOW_SAMPLES) window.count++;
+}
+
+/*
+ * Compute variance over the sliding window
+ * Equation: Var = (1/N) * Sum(x_i - mean)^2
+ */
 float computeVariance(SlidingWindow &window) {
     if (window.count == 0) return 0.0f;
 
-    // Pass 1: compute mean
     float sum = 0.0f;
-    for (int i = 0; i < window.count; i++) {
-        sum += window.buffer[i];
-    }
+    for (int i = 0; i < window.count; i++) sum += window.buffer[i];
     float mean = sum / window.count;
 
-    // Pass 2: compute variance
     float sq_sum = 0.0f;
     for (int i = 0; i < window.count; i++) {
         float diff = window.buffer[i] - mean;
@@ -376,37 +227,157 @@ float computeVariance(SlidingWindow &window) {
 }
 
 /*
- * Input:   MotionLog &log          - persistent log of recorded motion intervals
- *          unsigned long start_ms  - timestamp when active motion began (from millis())
- *          unsigned long end_ms    - timestamp when active motion ended (from millis())
+ * MIDSV — Motion Interval Detection State Variable
  *
- * Output: void - appends a new MotionInterval to log.intervals and increments log.count
- * 
- * Constants required: 
- * - MAX_INTERVALS - maximum number of intervals the log can store (10 in this case)
-*/
-void recordMotionInterval(MotionLog &log, unsigned long start_ms, unsigned long end_ms) {
-    if (log.count >= MAX_INTERVALS) return;
-    log.intervals[log.count] = {start_ms, end_ms};
-    log.count++;
+ * 2-state machine: REST <-> MOTION
+ * Transitions:
+ *   REST   -> MOTION : 10 consecutive high-variance samples (200 ms)
+ *   MOTION -> REST   : 5  consecutive low-variance samples  (100 ms)
+ *
+ * High variance: > VAR_THRESHOLD (0.30)
+ * Low  variance: <= VAR_THRESHOLD
+ *
+ * Returns: true if currently in MOTION state
+ */
+bool updateMIDSV(float variance) {
+    static MidsvState state          = MIDSV_REST;
+    static int        consecutive    = 0;
+
+    bool high = (variance > VAR_THRESHOLD);
+
+    switch (state) {
+        case MIDSV_REST:
+            if (high) {
+                consecutive++;
+                if (consecutive >= MIDSV_ENTER_MOTION_COUNT) {
+                    state       = MIDSV_MOTION;
+                    consecutive = 0;
+                }
+            } else {
+                consecutive = 0;
+            }
+            break;
+
+        case MIDSV_MOTION:
+            if (!high) {
+                consecutive++;
+                if (consecutive >= MIDSV_EXIT_MOTION_COUNT) {
+                    state       = MIDSV_REST;
+                    consecutive = 0;
+                }
+            } else {
+                consecutive = 0;
+            }
+            break;
+    }
+
+    return (state == MIDSV_MOTION);
 }
 
 /*
- * Compute vector-magnitude acceleration centred on 1g (drift-free, orientation-independent)
- * Input:  ImuData current (acc in m/s^2)
- * Output: float — sqrt(ax² + ay² + az²) − 9.81, approximately 0 when stationary
+ * MCSV — Motion Counting State Variable
  *
- * Why this beats double integration:
- * - No integration at all → zero accumulated drift
- * - Works regardless of how the sensor is oriented on the wrist
- * - During a rep the total acceleration magnitude rises and falls in a clean
- *   sinusoidal pattern that is easy to peak-detect
+ * 3-state machine: IDLE -> ASCENDING -> DESCENDING -> IDLE (rep counted)
  *
- * Usage: apply applyLowPassFilter() first (removes high-freq noise),
- * then applyHighPassFilter() on the result (removes the small DC residual
- * left after subtracting nominal 9.81 and any sensor bias).
+ * Local maxima detected when: prev_prev < prev > current  AND prev > MCSV_PEAK_THRESHOLD
+ * Local minima detected when: prev_prev > prev < current  AND prev < MCSV_TROUGH_THRESHOLD
+ *
+ * State transitions:
+ *   IDLE        -> ASCENDING   : local maxima above +0.45 m/s²
+ *   ASCENDING   -> DESCENDING  : local minima below -0.45 m/s²
+ *   DESCENDING  -> IDLE        : local maxima above +0.45 m/s² (rep counted)
+ *
+ * Resets to IDLE whenever in_motion is false.
+ *
+ * Returns: updated rep count
  */
-float computeVMAccel(ImuData current) {
-    float ax = current.acc.x, ay = current.acc.y, az = current.acc.z;
-    return sqrtf(ax*ax + ay*ay + az*az) - 9.81f;
+uint32_t updateMCSV(float vm, bool in_motion, uint32_t rep_count) {
+    static McsvState state    = MCSV_IDLE;
+    static float     prev     = 0.0f;
+    static float     prev_prev= 0.0f;
+
+    // Gate — reset if MIDSV says we're at rest
+    if (!in_motion) {
+        state     = MCSV_IDLE;
+        prev      = 0.0f;
+        prev_prev = 0.0f;
+        return rep_count;
+    }
+
+    bool local_max = (prev > prev_prev) && (prev > vm) && (prev >  MCSV_PEAK_THRESHOLD);
+    bool local_min = (prev < prev_prev) && (prev < vm) && (prev <  MCSV_TROUGH_THRESHOLD);
+
+    switch (state) {
+        case MCSV_IDLE:
+            if (local_max) state = MCSV_ASCENDING;
+            break;
+
+        case MCSV_ASCENDING:
+            if (local_min) state = MCSV_DESCENDING;
+            break;
+
+        case MCSV_DESCENDING:
+            if (local_max) {
+                rep_count++;
+                state = MCSV_IDLE;
+            }
+            break;
+    }
+
+    prev_prev = prev;
+    prev      = vm;
+    return rep_count;
+}
+
+/*
+ * updateRepCount — top-level pipeline entry point
+ *
+ * Pipeline:
+ *   raw ImuData
+ *     -> bias correction
+ *     -> low-pass filter  (10 Hz)
+ *     -> VM acceleration  (orientation-independent scalar)
+ *     -> high-pass filter (0.5 Hz, removes DC offset)
+ *     -> sliding variance (100-sample window)
+ *     -> MIDSV            (REST / MOTION gating)
+ *     -> MCSV             (rep counting)
+ *
+ * Input:  ImuData raw — fresh sample from MPU6050
+ * Output: uint32_t — current rep count
+ */
+uint32_t updateRepCount(ImuData raw) {
+    static LowPassFilter  lpf        = {.initialised = false};
+    static HighPassFilter hpf        = {.initialised = false};
+    static SlidingWindow  window     = {.head = 0, .count = 0};
+    static uint32_t       rep_count  = 0;
+
+    // 1. Bias correction
+    ImuData corrected = applyBiasCorrection(raw);
+
+    // 2. Low-pass filter
+    ImuData filtered = applyLowPassFilter(corrected, lpf);
+
+    // 3. VM acceleration
+    float vm_raw = computeVMAccel(filtered);
+
+    // 4. High-pass filter (dt from timestamps)
+    float dt = (raw.time_ms - (raw.time_ms)) / 1000.0f; // placeholder; real dt below
+    {
+        static unsigned long last_ms = 0;
+        dt = (last_ms == 0) ? 0.02f : (raw.time_ms - last_ms) / 1000.0f;
+        last_ms = raw.time_ms;
+    }
+    float vm = applyHighPassFilter(vm_raw, dt, cutoff_frequency_high_pass, hpf);
+
+    // 5. Sliding variance
+    addSample(window, vm);
+    float variance = computeVariance(window);
+
+    // 6. MIDSV
+    bool in_motion = updateMIDSV(variance);
+
+    // 7. MCSV
+    rep_count = updateMCSV(vm, in_motion, rep_count);
+
+    return rep_count;
 }

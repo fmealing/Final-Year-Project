@@ -1,0 +1,17 @@
+Metric,Value
+Total packets recorded,498
+Valid inter-arrival intervals,488
+Mean inter-arrival (ms),34.672
+Median (ms),30.000
+Std Dev / Jitter (ms),14.883
+Variance (ms²),221.498
+Min (ms),1.000
+Max (ms),91.000
+P5 (ms),17.350
+P25 (ms),29.000
+P75 (ms),32.000
+P95 (ms),61.000
+IQR (ms),3.000
+Effective frequency (Hz),28.842
+On-time within ±5.0 ms of 20.0 ms,2.5%
+Shapiro-Wilk p (normality test),0.0000

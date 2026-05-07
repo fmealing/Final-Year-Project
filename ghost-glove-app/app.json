@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "Ghost Glove",
+    "slug": "ghost-glove-app",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "ghostglove",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#111310"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.ghostglove.app",
+      "infoPlist": {
+        "NSBluetoothAlwaysUsageDescription": "Ghost Glove uses Bluetooth to connect to your ESP32-C3 glove sensor.",
+        "NSBluetoothPeripheralUsageDescription": "Ghost Glove uses Bluetooth to connect to your ESP32-C3 glove sensor."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#111310"
+      },
+      "package": "com.ghostglove.app",
+      "permissions": [
+        "android.permission.BLUETOOTH",
+        "android.permission.BLUETOOTH_ADMIN",
+        "android.permission.BLUETOOTH_SCAN",
+        "android.permission.BLUETOOTH_CONNECT",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "react-native-ble-plx",
+        {
+          "isBackgroundEnabled": false,
+          "modes": [
+            "peripheral",
+            "central"
+          ],
+          "bluetoothAlwaysPermission": "Ghost Glove uses Bluetooth to connect to your glove sensor."
+        }
+      ],
+      "expo-asset"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

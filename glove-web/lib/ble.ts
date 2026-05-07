@@ -43,6 +43,7 @@ type DisconnectCallback = () => void;
 export class GloveBle {
   private device: BluetoothDevice | null = null;
   private characteristic: BluetoothRemoteGATTCharacteristic | null = null;
+  private _connectedAt: number | null = null;
 
   async connect(
     onPacket: PacketCallback,
@@ -62,6 +63,7 @@ export class GloveBle {
     this.device.addEventListener("gattserverdisconnected", onDisconnect);
 
     const server = await this.device.gatt!.connect();
+    this._connectedAt = Date.now();
     const service = await server.getPrimaryService(SERVICE_UUID);
     this.characteristic = await service.getCharacteristic(CHARACTERISTIC_UUID);
 
@@ -84,6 +86,11 @@ export class GloveBle {
     }
     this.device = null;
     this.characteristic = null;
+    this._connectedAt = null;
+  }
+
+  get connectedAt(): number | null {
+    return this._connectedAt;
   }
 
   get deviceName(): string | null {

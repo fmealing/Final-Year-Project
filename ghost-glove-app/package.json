@@ -1,0 +1,59 @@
+{
+  "name": "ghost-glove-app",
+  "version": "1.0.0",
+  "main": "expo-router/entry",
+  "scripts": {
+    "start": "expo start",
+    "android": "expo run:android",
+    "ios": "expo run:ios",
+    "lint": "eslint .",
+    "postinstall": "node scripts/patch-metro.js"
+  },
+  "dependencies": {
+    "@expo-google-fonts/space-grotesk": "^0.4.1",
+    "@expo-google-fonts/space-mono": "^0.4.1",
+    "buffer": "^6.0.3",
+    "expo": "~53.0.0",
+    "expo-asset": "~11.1.7",
+    "expo-font": "~13.3.0",
+    "expo-router": "~5.1.11",
+    "expo-splash-screen": "~0.30.10",
+    "expo-status-bar": "~2.2.0",
+    "metro": "0.82.5",
+    "metro-cache": "0.82.5",
+    "metro-config": "0.82.5",
+    "metro-core": "0.82.5",
+    "metro-resolver": "0.82.5",
+    "metro-runtime": "0.82.5",
+    "metro-source-map": "0.82.5",
+    "metro-transform-plugins": "0.82.5",
+    "metro-transform-worker": "0.82.5",
+    "nativewind": "^4.1.23",
+    "react": "19.0.0",
+    "react-native": "0.79.6",
+    "react-native-ble-plx": "^3.1.2",
+    "react-native-chart-kit": "^6.12.0",
+    "react-native-svg": "15.11.2"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.24.0",
+    "@types/react": "~19.0.0",
+    "tailwindcss": "^3.4.0",
+    "typescript": "~5.8.3"
+  },
+  "overrides": {
+    "metro": "0.82.5",
+    "metro-cache": "0.82.5",
+    "metro-cache-key": "0.82.5",
+    "metro-config": "0.82.5",
+    "metro-core": "0.82.5",
+    "metro-file-map": "0.82.5",
+    "metro-resolver": "0.82.5",
+    "metro-runtime": "0.82.5",
+    "metro-source-map": "0.82.5",
+    "metro-transform-plugins": "0.82.5",
+    "metro-transform-worker": "0.82.5",
+    "react-native": "0.79.6",
+    "react-native-screens": "~4.11.1"
+  }
+}
